@@ -1,6 +1,8 @@
 <?php
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\ModuleManager;
+use Bitrix\Main\Config\Option;
+use Bitrix\Main\Diag\Debug;
 
 Loc::loadMessages(__FILE__);
 
@@ -25,15 +27,46 @@ class rest_monitor extends CModule
         $this->PARTNER_URI = Loc::getMessage("REST_MONITOR_PARTNER_URI");
     }
 
+
     public function DoInstall()
     {
         global $APPLICATION;
-        $this->InstallDB();
-        $this->InstallEvents();
-        $this->InstallAgents();
-        ModuleManager::registerModule($this->MODULE_ID);
-        $APPLICATION->IncludeAdminFile(Loc::getMessage("REST_MONITOR_INSTALL_TITLE"), __DIR__ . "/step.php");
+
+        // ← исправление: проверяем и POST, и GET
+        $step = (int)($_POST["step"] ?? $_GET["step"] ?? 1);
+
+        if ($step < 2) {
+            // Шаг 1 — форма для URL
+            $APPLICATION->IncludeAdminFile(
+                Loc::getMessage("REST_MONITOR_INSTALL_TITLE"),
+                __DIR__ . "/step1.php"
+            );
+        } else {
+            // Шаг 2 — сохраняем URL и продолжаем установку
+            $url = trim($_POST['opensearch_url'] ?? '');
+
+            if (filter_var($url, FILTER_VALIDATE_URL)) {
+                Option::set($this->MODULE_ID, 'OPENSEARCH_URL', $url."/rest_api_logs/_doc");
+
+            } else {
+                Debug::writeToFile("Неверный URL: $url", "Ошибка", "/rest_monitor_debug.log");
+            }
+
+            $this->InstallAgents();
+            $this->InstallEvents();
+            $this->InstallDB();
+
+
+            ModuleManager::registerModule($this->MODULE_ID);
+
+
+            $APPLICATION->IncludeAdminFile(
+                Loc::getMessage("REST_MONITOR_INSTALL_TITLE"),
+                __DIR__ . "/step.php"
+            );
+        }
     }
+
 
     public function DoUninstall()
     {
@@ -55,6 +88,7 @@ class rest_monitor extends CModule
             }
             ModuleManager::unRegisterModule($this->MODULE_ID);
         }
+        Option::delete($this->MODULE_ID, ['name' => 'OPENSEARCH_URL']);
     }
 
     public function InstallDB()
@@ -108,10 +142,6 @@ class rest_monitor extends CModule
         \CAgent::RemoveModuleAgents($this->MODULE_ID);
         return true;
     }
-
-
-
-
 
 
 }
