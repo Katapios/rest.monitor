@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+._*
+
+# IDE - JetBrains (IntelliJ, WebStorm, etc.)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# IDE - VSCode
+.vscode/
+*.code-workspace
+
+# IDE - Xcode
+*.xcworkspace
+*.xcodeproj/
+xcuserdata/
+
+# Другие временные файлы
+*.swp
+*.swo
+*~
+*.log
+*.tmp
+*.bak
