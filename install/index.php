@@ -107,16 +107,18 @@ class rest_monitor extends CModule
                 $this->InstallEvents();
                 $this->InstallAgents();
 
-                // Заменяем неправильный метод
-                if (!ModuleManager::isModuleInstalled($this->MODULE_ID)) {
-                    ModuleManager::registerModule($this->MODULE_ID);
-                }
+        if (!ModuleManager::isModuleInstalled($this->MODULE_ID)) {
+            ModuleManager::registerModule($this->MODULE_ID);
+        }
 
-                // Финальный шаг
-                $APPLICATION->IncludeAdminFile(
-                    Loc::getMessage("REST_MONITOR_INSTALL_TITLE"),
-                    __DIR__ . "/step2.php"
-                );
+        // И замените вывод финального шага:
+        $APPLICATION->IncludeAdminFile(
+            Loc::getMessage("REST_MONITOR_INSTALL_TITLE"),
+            __DIR__ . "/step2.php",
+            [
+                'MODULE_ID' => $this->MODULE_ID // Передаем ID модуля в шаблон
+            ]
+        );
             }
         } catch (\Exception $e) {
             Debug::writeToFile($e->getMessage(), "Installation Error", "/rest_monitor_debug.log");
