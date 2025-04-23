@@ -13,3 +13,5 @@ $MESS['REST_MONITOR_URL_HINT'] = 'Укажите полный URL вашего �
 $MESS['REST_MONITOR_INVALID_SERVER'] = 'Сервер не является OpenSearch';
 $MESS["REST_MONITOR_INSTALL_COMPLETE"] = "Установка завершена";
 $MESS["REST_MONITOR_INSTALL_COMPLETE_DESC"] = "Модуль успешно установлен. Вы можете перейти к его настройке или использовать его функции.";
+$MESS['REST_MONITOR_URL_VALID'] = 'URL корректный и доступен';
+$MESS['REST_MONITOR_FIX_ERRORS'] = 'Введите корректный и доступный url opensearch';

@@ -38,6 +38,12 @@ class rest_monitor extends CModule
             return false;
         }
 
+            // AJAX-валидация URL
+        if ($_REQUEST['ajax_action'] === 'validate_url' && check_bitrix_sessid()) {
+            $this->validateUrlAjax();
+            return;
+        }
+
         $step = (int)($_REQUEST["step"] ?? 1);
         $errorMessage = '';
         $savedUrl = '';
@@ -203,5 +209,54 @@ class rest_monitor extends CModule
     {
         \CAgent::RemoveModuleAgents($this->MODULE_ID);
         return true;
+    }
+
+    private function validateUrlAjax()
+    {
+        global $APPLICATION;
+        $APPLICATION->RestartBuffer();
+        header('Content-Type: application/json');
+
+        $url = trim($_POST['url'] ?? '');
+
+        try {
+            // Повторяем логику валидации из DoInstall
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                throw new \Exception(Loc::getMessage("REST_MONITOR_INVALID_URL_FORMAT"));
+            }
+
+            $checkUrl = rtrim($url, '/') . '/';
+
+            $ch = curl_init($checkUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError) {
+                throw new \Exception(Loc::getMessage("REST_MONITOR_CONNECTION_ERROR") . ": " . $curlError);
+            }
+
+            if ($httpCode >= 400) {
+                throw new \Exception(Loc::getMessage("REST_MONITOR_INVALID_RESPONSE") . " (HTTP $httpCode)");
+            }
+
+            $data = json_decode($response, true);
+            if (empty($data['version']['number'])) {
+                throw new \Exception(Loc::getMessage("REST_MONITOR_INVALID_SERVER"));
+            }
+
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+
+        die();
     }
 }
