@@ -1,4 +1,5 @@
 <?php
+
 namespace Rest\Monitor;
 
 use Bitrix\Main\Loader;

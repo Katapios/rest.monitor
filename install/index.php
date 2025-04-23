@@ -1,4 +1,5 @@
 <?php
+
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\ModuleManager;
 use Bitrix\Main\Config\Option;
@@ -32,41 +33,102 @@ class rest_monitor extends CModule
     {
         global $APPLICATION;
 
-        // ← исправление: проверяем и POST, и GET
-        $step = (int)($_POST["step"] ?? $_GET["step"] ?? 1);
+        if (!$GLOBALS['USER']->IsAdmin()) {
+            $APPLICATION->ThrowException(Loc::getMessage("REST_MONITOR_ACCESS_DENIED"));
+            return false;
+        }
 
-        if ($step < 2) {
-            // Шаг 1 — форма для URL
-            $APPLICATION->IncludeAdminFile(
-                Loc::getMessage("REST_MONITOR_INSTALL_TITLE"),
-                __DIR__ . "/step1.php"
-            );
-        } else {
-            // Шаг 2 — сохраняем URL и продолжаем установку
-            $url = trim($_POST['opensearch_url'] ?? '');
+        $step = (int)($_REQUEST["step"] ?? 1);
+        $errorMessage = '';
+        $savedUrl = '';
 
-            if (filter_var($url, FILTER_VALIDATE_URL)) {
-                Option::set($this->MODULE_ID, 'OPENSEARCH_URL', $url."/rest_api_logs/_doc");
-
+        try {
+            if ($step < 2) {
+                // Шаг 1 - форма ввода
+                $APPLICATION->IncludeAdminFile(
+                    Loc::getMessage("REST_MONITOR_INSTALL_TITLE"),
+                    __DIR__ . "/step1.php",
+                    [
+                        'ERROR' => $errorMessage,
+                        'SAVED_URL' => $savedUrl
+                    ]
+                );
             } else {
-                Debug::writeToFile("Неверный URL: $url", "Ошибка", "/rest_monitor_debug.log");
+                // Шаг 2 - обработка
+                $url = trim($_POST['opensearch_url'] ?? '');
+                $savedUrl = htmlspecialcharsbx($url);
+
+                // Валидация URL
+                if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                    throw new \Exception(Loc::getMessage("REST_MONITOR_INVALID_URL_FORMAT"));
+                }
+
+                // URL для проверки (корень OpenSearch)
+                $checkUrl = rtrim($url, '/') . '/';
+
+                $ch = curl_init($checkUrl);
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_TIMEOUT => 10,
+                    CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                ]);
+
+                $response = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($ch);
+                curl_close($ch);
+
+                if ($curlError) {
+                    throw new \Exception(Loc::getMessage("REST_MONITOR_CONNECTION_ERROR") . ": " . $curlError);
+                }
+
+                if ($httpCode >= 400) {
+                    throw new \Exception(Loc::getMessage("REST_MONITOR_INVALID_RESPONSE") . " (HTTP $httpCode)");
+                }
+
+                // Доп. проверка, что ответ от OpenSearch
+                $data = json_decode($response, true);
+                if (empty($data['version']['number'])) {
+                    throw new \Exception(Loc::getMessage("REST_MONITOR_INVALID_SERVER"));
+                }
+
+                // Сохраняем исходный URL с /rest_api_logs/_doc
+                $fullUrl = rtrim($url, '/') . '/rest_api_logs/_doc';
+                Option::set($this->MODULE_ID, 'OPENSEARCH_URL', $fullUrl);
+
+                // Установка компонентов
+                $this->InstallDB();
+                $this->InstallEvents();
+                $this->InstallAgents();
+
+                // Заменяем неправильный метод
+                if (!ModuleManager::isModuleInstalled($this->MODULE_ID)) {
+                    ModuleManager::registerModule($this->MODULE_ID);
+                }
+
+                // Финальный шаг
+                $APPLICATION->IncludeAdminFile(
+                    Loc::getMessage("REST_MONITOR_INSTALL_TITLE"),
+                    __DIR__ . "/step2.php"
+                );
             }
+        } catch (\Exception $e) {
+            Debug::writeToFile($e->getMessage(), "Installation Error", "/rest_monitor_debug.log");
 
-            $this->InstallAgents();
-            $this->InstallEvents();
-            $this->InstallDB();
-
-
-            ModuleManager::registerModule($this->MODULE_ID);
-
+            // Возвращаем на шаг 1 с ошибкой
+            $step = 1;
+            $errorMessage = $e->getMessage();
 
             $APPLICATION->IncludeAdminFile(
                 Loc::getMessage("REST_MONITOR_INSTALL_TITLE"),
-                __DIR__ . "/step.php"
+                __DIR__ . "/step1.php",
+                [
+                    'ERROR' => $errorMessage,
+                    'SAVED_URL' => $savedUrl
+                ]
             );
         }
     }
-
 
     public function DoUninstall()
     {
@@ -142,6 +204,4 @@ class rest_monitor extends CModule
         \CAgent::RemoveModuleAgents($this->MODULE_ID);
         return true;
     }
-
-
 }

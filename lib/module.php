@@ -1,4 +1,5 @@
 <?php
+
 namespace RestMonitor;
 
 class Module

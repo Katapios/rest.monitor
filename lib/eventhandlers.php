@@ -1,4 +1,5 @@
 <?php
+
 namespace Rest\Monitor;
 
 use Bitrix\Main\Context;
@@ -37,7 +38,8 @@ class EventHandlers
                     $result .= ": " . $data["error_description"];
                 }
             }
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+        }
 
         LogTable::add([
             "TIMESTAMP_X" => new \Bitrix\Main\Type\DateTime(),

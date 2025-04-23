@@ -1,4 +1,5 @@
 <?php
+
 use Bitrix\Main\Localization\Loc;
 ?>
 <p><?php echo Loc::getMessage("REST_MONITOR_UNINSTALL_WARNING"); ?></p>

@@ -1,11 +1,15 @@
 <?php
+
 namespace Rest\Monitor;
 
 use Bitrix\Main\Entity;
 
 class LogTable extends Entity\DataManager
 {
-    public static function getTableName() { return 'b_rest_api_log'; }
+    public static function getTableName()
+    {
+        return 'b_rest_api_log';
+    }
 
     public static function getMap()
     {
