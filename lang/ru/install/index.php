@@ -16,3 +16,15 @@ $MESS["REST_MONITOR_INSTALL_COMPLETE_DESC"] = "Модуль успешно ус�
 $MESS['REST_MONITOR_URL_VALID'] = 'URL корректный и доступен';
 $MESS['REST_MONITOR_FIX_ERRORS'] = 'Введите корректный и доступный url opensearch';
 $MESS['REST_MONITOR_BACK_TO_MODULES'] = "Вернуться к списку модулей";
+
+$MESS["REST_MONITOR_UNINSTALL_WARNING"] = "Внимание: перед удалением модуля вы можете просмотреть статистику по CRM-сущностям.";
+$MESS["REST_MONITOR_CRM_STATS_TITLE"] = "Статистика CRM (всего создано)";
+$MESS["REST_MONITOR_CRM_STATS_UNAVAILABLE"] = "Невозможно получить статистику — модуль CRM не установлен.";
+$MESS["REST_MONITOR_ENTITY_DEALS"] = "Сделки";
+$MESS["REST_MONITOR_ENTITY_LEADS"] = "Лиды";
+$MESS["REST_MONITOR_ENTITY_CONTACTS"] = "Контакты";
+$MESS["REST_MONITOR_ENTITY_COMPANIES"] = "Компании";
+$MESS["REST_MONITOR_ENTITY_PRODUCTS"] = "Товары";
+$MESS["REST_MONITOR_DELETE_ENTITIES"] = "Удалить все данные, созданные модулем";
+
+$MESS["REST_MONITOR_DELETE_ENTITIES"] = "Удалить связанные данные:";

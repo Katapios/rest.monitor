@@ -138,28 +138,122 @@ class rest_monitor extends CModule
         }
     }
 
-    public function DoUninstall()
+
+        public function DoUninstall()
     {
         global $APPLICATION;
+
         $this->UnInstallAgents();
         $this->UnInstallEvents();
         $this->UnInstallDB();
         $request = \Bitrix\Main\Context::getCurrent()->getRequest();
         $step = (int)$request->get("step");
 
+        $crmStats = [];
+
+        if (\Bitrix\Main\Loader::includeSharewareModule('crm')) {
+            try {
+                $crmStats = [
+                    'DEALS' => \Bitrix\Crm\DealTable::getCount(),
+                    'LEADS' => \Bitrix\Crm\LeadTable::getCount(),
+                    'CONTACTS' => \Bitrix\Crm\ContactTable::getCount(),
+                    'COMPANIES' => \Bitrix\Crm\CompanyTable::getCount(),
+                    'PRODUCTS' => \Bitrix\Crm\ProductTable::getCount(),
+                ];
+
+                if (defined("REST_MONITOR_DEBUG") && REST_MONITOR_DEBUG === true) {
+                    \Bitrix\Main\Diag\Debug::writeToFile($crmStats, "CRM статистика получена", "/rest_monitor_debug.log");
+                }
+            } catch (\Exception $e) {
+                if (defined("REST_MONITOR_DEBUG") && REST_MONITOR_DEBUG === true) {
+                    \Bitrix\Main\Diag\Debug::writeToFile($e->getMessage(), "Ошибка при сборе CRM статистики", "/rest_monitor_debug.log");
+                }
+            }
+        }
+
         if ($step < 2) {
+            $_SESSION['REST_MONITOR_CRM_STATS'] = $crmStats;
             $APPLICATION->IncludeAdminFile(
                 Loc::getMessage("REST_MONITOR_UNINSTALL_TITLE"),
                 __DIR__ . "/uninstall.php"
             );
         } else {
-            if ($request->get("delete_entities") === "Y") {
-                // Здесь можно добавить удаление данных
+            // Проверка: удалять ли CRM-сущности
+            $hasEntityFlags = $request->get("delete_deals") === "Y"
+                || $request->get("delete_leads") === "Y"
+                || $request->get("delete_contacts") === "Y"
+                || $request->get("delete_companies") === "Y"
+                || $request->get("delete_products") === "Y";
+
+            if ($hasEntityFlags && \Bitrix\Main\Loader::includeModule('crm')) {
+                $typesToDelete = [
+                    'delete_deals' => ['class' => \Bitrix\Crm\DealTable::class, 'delete' => \CCrmDeal::class],
+                    'delete_leads' => ['class' => \Bitrix\Crm\LeadTable::class, 'delete' => \CCrmLead::class],
+                    'delete_contacts' => ['class' => \Bitrix\Crm\ContactTable::class, 'delete' => \CCrmContact::class],
+                    'delete_companies' => ['class' => \Bitrix\Crm\CompanyTable::class, 'delete' => \CCrmCompany::class],
+                    'delete_products' => ['class' => \Bitrix\Crm\ProductTable::class, 'delete' => \CCrmProduct::class],
+                ];
+
+                $start = time();
+                $limit = 100;
+
+                foreach ($typesToDelete as $requestKey => $handlers) {
+                    if ($request->get($requestKey) === "Y") {
+                        $className = $handlers['class'];
+                        $deleteClass = $handlers['delete'];
+
+                        $res = $className::getList([
+                            'select' => ['ID'],
+                            'limit' => $limit,
+                            'order' => ['ID' => 'ASC'],
+                        ]);
+
+                        $counter = 0;
+                        while ($item = $res->fetch()) {
+                            $entity = new $deleteClass();
+                            $result = $entity->Delete($item['ID'], false);
+                            $counter++;
+
+                            if (defined("REST_MONITOR_DEBUG") && REST_MONITOR_DEBUG === true) {
+                                \Bitrix\Main\Diag\Debug::writeToFile(
+                                    "Удалено: {$deleteClass} #{$item['ID']}, результат: " . ($result ? "успешно" : "ошибка"),
+                                    "Удаление CRM",
+                                    "/rest_monitor_debug.log"
+                                );
+                            }
+
+                            if ((time() - $start) > 10) {
+                                break;
+                            }
+                        }
+
+                        if ($counter > 0 && defined("REST_MONITOR_DEBUG") && REST_MONITOR_DEBUG === true) {
+                            \Bitrix\Main\Diag\Debug::writeToFile(
+                                "Успешно удалено {$counter} сущностей типа {$requestKey}",
+                                "CRM Удаление завершено",
+                                "/rest_monitor_debug.log"
+                            );
+                        }
+
+                        if ($counter >= $limit) {
+                            \Bitrix\Main\Diag\Debug::writeToFile(
+                                "Удалено $counter элементов, возможно нужно повторить удаление",
+                                "CRM Удаление неполное",
+                                "/rest_monitor_debug.log"
+                            );
+                        }
+                    }
+                }
             }
-            ModuleManager::unRegisterModule($this->MODULE_ID);
+
+            \Bitrix\Main\Config\Option::delete($this->MODULE_ID, ['name' => 'OPENSEARCH_URL']);
+            \Bitrix\Main\ModuleManager::unRegisterModule($this->MODULE_ID);
         }
-        Option::delete($this->MODULE_ID, ['name' => 'OPENSEARCH_URL']);
     }
+
+
+
+
 
     public function InstallDB()
     {
