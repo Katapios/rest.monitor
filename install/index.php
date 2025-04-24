@@ -38,7 +38,7 @@ class rest_monitor extends CModule
             return false;
         }
 
-            // AJAX-валидация URL
+        // AJAX-валидация URL
         if ($_REQUEST['ajax_action'] === 'validate_url' && check_bitrix_sessid()) {
             $this->validateUrlAjax();
             return;
@@ -107,18 +107,18 @@ class rest_monitor extends CModule
                 $this->InstallEvents();
                 $this->InstallAgents();
 
-        if (!ModuleManager::isModuleInstalled($this->MODULE_ID)) {
-            ModuleManager::registerModule($this->MODULE_ID);
-        }
+                if (!ModuleManager::isModuleInstalled($this->MODULE_ID)) {
+                    ModuleManager::registerModule($this->MODULE_ID);
+                }
 
-        // И замените вывод финального шага:
-        $APPLICATION->IncludeAdminFile(
-            Loc::getMessage("REST_MONITOR_INSTALL_TITLE"),
-            __DIR__ . "/step2.php",
-            [
-                'MODULE_ID' => $this->MODULE_ID // Передаем ID модуля в шаблон
-            ]
-        );
+                // И замените вывод финального шага:
+                $APPLICATION->IncludeAdminFile(
+                    Loc::getMessage("REST_MONITOR_INSTALL_TITLE"),
+                    __DIR__ . "/step2.php",
+                    [
+                        'MODULE_ID' => $this->MODULE_ID // Передаем ID модуля в шаблон
+                    ]
+                );
             }
         } catch (\Exception $e) {
             Debug::writeToFile($e->getMessage(), "Installation Error", "/rest_monitor_debug.log");
@@ -139,7 +139,7 @@ class rest_monitor extends CModule
     }
 
 
-        public function DoUninstall()
+    public function DoUninstall()
     {
         global $APPLICATION;
 
@@ -148,6 +148,9 @@ class rest_monitor extends CModule
         $this->UnInstallDB();
         $request = \Bitrix\Main\Context::getCurrent()->getRequest();
         $step = (int)$request->get("step");
+
+        \Bitrix\Main\Loader::includeModule('crm');
+        \Bitrix\Main\Loader::includeModule('catalog');
 
         $crmStats = [];
 
@@ -158,7 +161,7 @@ class rest_monitor extends CModule
                     'LEADS' => \Bitrix\Crm\LeadTable::getCount(),
                     'CONTACTS' => \Bitrix\Crm\ContactTable::getCount(),
                     'COMPANIES' => \Bitrix\Crm\CompanyTable::getCount(),
-                    'PRODUCTS' => \Bitrix\Crm\ProductTable::getCount(),
+                    'PRODUCTS' => \Bitrix\Catalog\ProductTable::getCount(),
                 ];
 
                 if (defined("REST_MONITOR_DEBUG") && REST_MONITOR_DEBUG === true) {
@@ -191,7 +194,7 @@ class rest_monitor extends CModule
                     'delete_leads' => ['class' => \Bitrix\Crm\LeadTable::class, 'delete' => \CCrmLead::class],
                     'delete_contacts' => ['class' => \Bitrix\Crm\ContactTable::class, 'delete' => \CCrmContact::class],
                     'delete_companies' => ['class' => \Bitrix\Crm\CompanyTable::class, 'delete' => \CCrmCompany::class],
-                    'delete_products' => ['class' => \Bitrix\Crm\ProductTable::class, 'delete' => \CCrmProduct::class],
+                    'delete_products' => ['class' => \Bitrix\Catalog\ProductTable::class, 'delete' => 'CIBlockElement'], // особый случай
                 ];
 
                 $start = time();
@@ -201,47 +204,41 @@ class rest_monitor extends CModule
                     if ($request->get($requestKey) === "Y") {
                         $className = $handlers['class'];
                         $deleteClass = $handlers['delete'];
+                        $totalDeleted = 0;
 
-                        $res = $className::getList([
-                            'select' => ['ID'],
-                            'limit' => $limit,
-                            'order' => ['ID' => 'ASC'],
-                        ]);
+                        do {
+                            $res = $className::getList([
+                                'select' => ['ID'],
+                                'limit' => 100,
+                                'order' => ['ID' => 'ASC'],
+                            ]);
 
-                        $counter = 0;
-                        while ($item = $res->fetch()) {
-                            $entity = new $deleteClass();
-                            $result = $entity->Delete($item['ID'], false);
-                            $counter++;
+                            $counter = 0;
+                            while ($item = $res->fetch()) {
+                                if ($deleteClass === 'CIBlockElement') {
+                                    $result = \CIBlockElement::Delete($item['ID']);
+                                } else {
+                                    $entity = new $deleteClass();
+                                    $result = $entity->Delete($item['ID'], false);
+                                }
+                                $counter++;
+                                $totalDeleted++;
 
-                            if (defined("REST_MONITOR_DEBUG") && REST_MONITOR_DEBUG === true) {
-                                \Bitrix\Main\Diag\Debug::writeToFile(
-                                    "Удалено: {$deleteClass} #{$item['ID']}, результат: " . ($result ? "успешно" : "ошибка"),
-                                    "Удаление CRM",
-                                    "/rest_monitor_debug.log"
-                                );
+                                if (defined("REST_MONITOR_DEBUG") && REST_MONITOR_DEBUG === true) {
+                                    \Bitrix\Main\Diag\Debug::writeToFile(
+                                        "Удалено: {$deleteClass} #{$item['ID']}, результат: " . ($result ? "успешно" : "ошибка"),
+                                        "Удаление CRM",
+                                        "/rest_monitor_debug.log"
+                                    );
+                                }
                             }
+                        } while ($counter > 0);
 
-                            if ((time() - $start) > 10) {
-                                break;
-                            }
-                        }
-
-                        if ($counter > 0 && defined("REST_MONITOR_DEBUG") && REST_MONITOR_DEBUG === true) {
-                            \Bitrix\Main\Diag\Debug::writeToFile(
-                                "Успешно удалено {$counter} сущностей типа {$requestKey}",
-                                "CRM Удаление завершено",
-                                "/rest_monitor_debug.log"
-                            );
-                        }
-
-                        if ($counter >= $limit) {
-                            \Bitrix\Main\Diag\Debug::writeToFile(
-                                "Удалено $counter элементов, возможно нужно повторить удаление",
-                                "CRM Удаление неполное",
-                                "/rest_monitor_debug.log"
-                            );
-                        }
+                        \Bitrix\Main\Diag\Debug::writeToFile(
+                            "Удалено всего {$totalDeleted} записей типа {$requestKey}",
+                            "CRM Полное удаление завершено",
+                            "/rest_monitor_debug.log"
+                        );
                     }
                 }
             }
@@ -250,9 +247,6 @@ class rest_monitor extends CModule
             \Bitrix\Main\ModuleManager::unRegisterModule($this->MODULE_ID);
         }
     }
-
-
-
 
 
     public function InstallDB()

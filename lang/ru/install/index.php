@@ -28,3 +28,4 @@ $MESS["REST_MONITOR_ENTITY_PRODUCTS"] = "Товары";
 $MESS["REST_MONITOR_DELETE_ENTITIES"] = "Удалить все данные, созданные модулем";
 
 $MESS["REST_MONITOR_DELETE_ENTITIES"] = "Удалить связанные данные:";
+$MESS["REST_MONITOR_ENTITY_PRODUCTS"] = "Товары";

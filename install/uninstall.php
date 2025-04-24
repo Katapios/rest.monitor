@@ -1,4 +1,5 @@
 <?php
+
 use Bitrix\Main\Localization\Loc;
 
 $CRM_STATS = $_SESSION['REST_MONITOR_CRM_STATS'] ?? null;

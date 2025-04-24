@@ -49,67 +49,67 @@ $savedUrl = $arParams['SAVED_URL'] ?? 'http://localhost:9200';
 </form>
 
 <script>
-BX.ready(function() {
-    var urlInput = document.getElementById('opensearch_url');
-    var form = document.querySelector('form');
-    var errorDiv = document.createElement('div');
-    errorDiv.id = 'url_error';
-    errorDiv.style.marginTop = '5px';
-    urlInput.parentNode.insertBefore(errorDiv, urlInput.nextSibling);
-    
-    var isValidUrl = false; // Флаг валидности URL
-    var timeoutId;
+    BX.ready(function() {
+        var urlInput = document.getElementById('opensearch_url');
+        var form = document.querySelector('form');
+        var errorDiv = document.createElement('div');
+        errorDiv.id = 'url_error';
+        errorDiv.style.marginTop = '5px';
+        urlInput.parentNode.insertBefore(errorDiv, urlInput.nextSibling);
 
-    function validateUrl() {
-        var url = urlInput.value.trim();
-        errorDiv.innerHTML = ''; // Очищаем сообщения
-        isValidUrl = false;
+        var isValidUrl = false; // Флаг валидности URL
+        var timeoutId;
 
-        if (!url) {
-            return;
+        function validateUrl() {
+            var url = urlInput.value.trim();
+            errorDiv.innerHTML = ''; // Очищаем сообщения
+            isValidUrl = false;
+
+            if (!url) {
+                return;
+            }
+
+            BX.ajax({
+                url: '<?= $APPLICATION->GetCurPage() ?>',
+                data: {
+                    lang: '<?= LANG ?>',
+                    id: 'rest.monitor',
+                    install: 'Y',
+                    step: '1',
+                    ajax_action: 'validate_url',
+                    sessid: BX.bitrix_sessid(),
+                    url: url
+                },
+                method: 'POST',
+                dataType: 'json',
+                onsuccess: function(response) {
+                    if (response.error) {
+                        errorDiv.innerHTML = '<span style="color: red;">' + response.error + '</span>';
+                        isValidUrl = false;
+                    } else {
+                        errorDiv.innerHTML = '<span style="color: green;"><?= Loc::getMessage("REST_MONITOR_URL_VALID") ?></span>';
+                        isValidUrl = true;
+                    }
+                },
+                onfailure: function() {
+                    isValidUrl = false;
+                }
+            });
         }
 
-        BX.ajax({
-            url: '<?= $APPLICATION->GetCurPage() ?>',
-            data: {
-                lang: '<?= LANG ?>',
-                id: 'rest.monitor',
-                install: 'Y',
-                step: '1',
-                ajax_action: 'validate_url',
-                sessid: BX.bitrix_sessid(),
-                url: url
-            },
-            method: 'POST',
-            dataType: 'json',
-            onsuccess: function(response) {
-                if (response.error) {
-                    errorDiv.innerHTML = '<span style="color: red;">' + response.error + '</span>';
-                    isValidUrl = false;
-                } else {
-                    errorDiv.innerHTML = '<span style="color: green;"><?=Loc::getMessage("REST_MONITOR_URL_VALID")?></span>';
-                    isValidUrl = true;
-                }
-            },
-            onfailure: function() {
-                isValidUrl = false;
+        urlInput.addEventListener('input', function() {
+            clearTimeout(timeoutId);
+            errorDiv.innerHTML = ''; // Очищаем предыдущие сообщения
+            isValidUrl = false;
+            timeoutId = setTimeout(validateUrl, 500);
+        });
+
+        form.addEventListener('submit', function(e) {
+            if (!isValidUrl) {
+                e.preventDefault();
+                alert('<?= Loc::getMessage("REST_MONITOR_FIX_ERRORS") ?>');
+                urlInput.focus();
             }
         });
-    }
-
-    urlInput.addEventListener('input', function() {
-        clearTimeout(timeoutId);
-        errorDiv.innerHTML = ''; // Очищаем предыдущие сообщения
-        isValidUrl = false;
-        timeoutId = setTimeout(validateUrl, 500);
     });
-
-    form.addEventListener('submit', function(e) {
-        if (!isValidUrl) {
-            e.preventDefault();
-            alert('<?=Loc::getMessage("REST_MONITOR_FIX_ERRORS")?>');
-            urlInput.focus();
-        }
-    });
-});
 </script>
